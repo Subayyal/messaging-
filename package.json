@@ -1,0 +1,29 @@
+{
+  "name": "socket-app",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "body-parser": "^1.17.1",
+    "circular-json": "^0.3.1",
+    "connect-flash": "^0.1.1",
+    "connect-redis": "^3.2.0",
+    "cookie-parser": "^1.4.3",
+    "cors": "^2.8.3",
+    "express": "^4.15.2",
+    "express-myconnection": "^1.0.4",
+    "express-mysql-session": "^1.2.0",
+    "express-session": "^1.15.2",
+    "guid": "0.0.12",
+    "mysql": "^2.13.0",
+    "passport": "^0.3.2",
+    "passport-local": "^1.0.0",
+    "passport.socketio": "^3.7.0",
+    "socket.io": "^1.7.3"
+  }
+}
