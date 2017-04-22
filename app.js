@@ -6,10 +6,10 @@ var mysql = require('mysql');
 var bodyParser = require('body-parser');
 var cors = require('cors');
 var connection = require('express-myconnection');
+var cookieParser = require('cookie-parser');
 var session  = require('express-session');
 var passportSocketIo = require("passport.socketio");
 var MySqlStore = require('express-mysql-session')(session);
-var cookieParser = require('cookie-parser');
 var passport = require('passport');
 var flash    = require('connect-flash');
 var circularJSON = require('circular-json');
@@ -45,13 +45,14 @@ var sessionConnection = mysql.createConnection(options);
 // required for passport
 var sessionStore = new MySqlStore({}, sessionConnection);
 
-app.use(cookieParser());
+app.use(cookieParser('mysecret'));
 app.use(session({
-    key: 'aprimacookie',
+   key: 'aprimacookie',
+    secret: 'mysecret',
   store: sessionStore,  //tell express to store session info in the Mysql store
-  secret: 'mysecret',
-  resave: true,
-  saveUninitialized: true
+  cookie: { httpOnly: true, maxAge: 2419200000 },
+  resave: false,
+  saveUninitialized: false
 }));
 app.use(passport.initialize());
 app.use(passport.session()); // persistent login sessions
@@ -59,7 +60,6 @@ app.use(flash()); // use connect-flash for flash messages stored in session
 
 io.use(passportSocketIo.authorize({ //configure socket.io
    key: 'aprimacookie',
-   cookieParser: cookieParser,
    secret:      'mysecret',    // make sure it's the same than the one you gave to express
    store:       sessionStore,        
    success:     onAuthorizeSuccess,  // *optional* callback on success
@@ -91,22 +91,20 @@ function onAuthorizeFail(data, message, error, accept){
 }
 var socketList = new Array();
 io.on('connection', function(socket){
-    if(socket.request.user.logged_in == false)
+    if(socket.request.user.logged_in == false){
         socket.disconnect();
-    socketList.push(socket);
-    console.log('socketList length: ' + socketList.length);
+    }
 
     socket.on('join-conversation', function(data){
-        for(var i = 0; i < socketList.length; i++){
-            if(socketList[i].request.user.user_id == data.userId){
+        console.log('join called');
+
+        passportSocketIo.filterSocketsByUser(io, function(user){
+          return user.logged_in == true;
+        }).forEach(function(socket){
+          if(socket.request.user.user_id == data.userId){
                 socket.join(data.group);
                 console.log('user ' + data.userId + ' has joined group ' + data.group);
-                break;
-            }
-        }
-        io.of('/').in('1').clients(function(error, clients){
-          if (error) throw error;
-          console.log(clients);
+          }
         });
     });
 
@@ -116,19 +114,12 @@ io.on('connection', function(socket){
     });
 
     socket.on('disconnect', function(){
-        console.log('called');
-        for(var i = 0; i < socketList.length; i++){
-            if(socketList[i].id == socket.id){
-                socketList.splice(i,1);
-                break;
-            }
-        }
-        socket.disconnect(true);
-        console.log(socketList.length);
+        console.log(socket.request.user.user_id + ' disconnected');
     });
 });
 
 app.post('/login', function(req, res, next) {
+    console.log('/login called' + req.session.id);
   passport.authenticate('local-login', function(err, user, info) {
     if (err) { return next(err); }
     // Redirect if it fails
@@ -136,7 +127,6 @@ app.post('/login', function(req, res, next) {
     req.logIn(user, function(err) {
       if (err) { return next(err); }
       // Redirect if it succeeds
-      console.log(user.user_id);
       return res.json(user.user_id);
       
     });
@@ -144,9 +134,19 @@ app.post('/login', function(req, res, next) {
 });
 
 app.get('/logout', function(req, res){
+    console.log('/logout ' + req.session.id);
     req.logout();
     req.session.destroy();
+    res.clearCookie('aprimacookie', {path:'/'});
+    res.clearCookie('io');
     res.json({'success': 'success'});
+});
+
+app.get('/checkAuthentication', function(req, res){
+    console.log('/checkAuthentication ' + req.session.id);
+    var status = req.isAuthenticated();
+    console.log(status);
+    res.json({'logged_in': status});
 });
 
 //======================================================================================//
@@ -246,8 +246,6 @@ app.get('/getContacts', function(req, res, next) {
 });
 
 app.get('/conversations', function(req, res, next) {
-    if(!req.isAuthenticated())
-
     try {
         var query = url.parse(req.url, true).query;
         var host_id = query.host_id;
