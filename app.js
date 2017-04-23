@@ -7,11 +7,11 @@ var bodyParser = require('body-parser');
 var cors = require('cors');
 var connection = require('express-myconnection');
 var cookieParser = require('cookie-parser');
-var session  = require('express-session');
+var session = require('express-session');
 var passportSocketIo = require("passport.socketio");
 var MySqlStore = require('express-mysql-session')(session);
 var passport = require('passport');
-var flash    = require('connect-flash');
+var flash = require('connect-flash');
 var circularJSON = require('circular-json');
 
 require('./config/passport')(passport);
@@ -19,27 +19,27 @@ require('./config/passport')(passport);
 var i = 1;
 
 app.use(function(req, res, next) {
-        res.header('Access-Control-Allow-Credentials', true);
-        res.header('Access-Control-Allow-Origin', req.headers.origin);
-        res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE');
-        res.header('Access-Control-Allow-Headers', 'X-Requested-With, X-HTTP-Method-Override, Content-Type, Accept');
-        if ('OPTIONS' == req.method) {
-            res.sendStatus(200);
-        } else {
-            next();
-        }
-    });
+    res.header('Access-Control-Allow-Credentials', true);
+    res.header('Access-Control-Allow-Origin', req.headers.origin);
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE');
+    res.header('Access-Control-Allow-Headers', 'X-Requested-With, X-HTTP-Method-Override, Content-Type, Accept');
+    if ('OPTIONS' == req.method) {
+        res.sendStatus(200);
+    } else {
+        next();
+    }
+});
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 
 var options = {
-    host: '127.0.0.1',
+    host: 'localhost',
     port: 3306,
-    user: 'root',
-    password: 'root',
+    user: 'keshri',
+    password: 'keshri',
     database: 'session'
 };
- 
+
 var sessionConnection = mysql.createConnection(options);
 
 // required for passport
@@ -47,106 +47,106 @@ var sessionStore = new MySqlStore({}, sessionConnection);
 
 app.use(cookieParser('mysecret'));
 app.use(session({
-   key: 'aprimacookie',
+    key: 'aprimacookie',
     secret: 'mysecret',
-  store: sessionStore,  //tell express to store session info in the Mysql store
-  cookie: { httpOnly: true, maxAge: 2419200000 },
-  resave: false,
-  saveUninitialized: false
+    store: sessionStore, //tell express to store session info in the Mysql store
+    cookie: { httpOnly: true, maxAge: 2419200000 },
+    resave: false,
+    saveUninitialized: false
 }));
 app.use(passport.initialize());
 app.use(passport.session()); // persistent login sessions
 app.use(flash()); // use connect-flash for flash messages stored in session
 
 io.use(passportSocketIo.authorize({ //configure socket.io
-   key: 'aprimacookie',
-   secret:      'mysecret',    // make sure it's the same than the one you gave to express
-   store:       sessionStore,        
-   success:     onAuthorizeSuccess,  // *optional* callback on success
-   fail:        onAuthorizeFail     // *optional* callback on fail/error
+    key: 'aprimacookie',
+    secret: 'mysecret', // make sure it's the same than the one you gave to express
+    store: sessionStore,
+    success: onAuthorizeSuccess, // *optional* callback on success
+    fail: onAuthorizeFail // *optional* callback on fail/error
 }));
 
 app.use(connection(mysql, {
-    host: "127.0.0.1",
-    user: "root",
-    password: "root",
+    host: "localhost",
+    user: "keshri",
+    password: "keshri",
     database: "messaging"
 }, 'request'));
 
 server.listen(4041, function() {
-  console.log('server up and running at 4041 port');
+    console.log('server up and running at 4041 port');
 });
 
-function onAuthorizeSuccess(data, accept){
-  console.log('successful connection to socket.io');
-  // If you use socket.io@1.X the callback looks different
-  accept();
+function onAuthorizeSuccess(data, accept) {
+    console.log('successful connection to socket.io');
+    // If you use socket.io@1.X the callback looks different
+    accept();
 }
 
-function onAuthorizeFail(data, message, error, accept){
-  if(error) accept(new Error(message));
-  console.log('failed connection to socket.io:', message);
-  accept(null, false);
+function onAuthorizeFail(data, message, error, accept) {
+    if (error) accept(new Error(message));
+    console.log('failed connection to socket.io:', message);
+    accept(null, false);
 
 }
 var socketList = new Array();
-io.on('connection', function(socket){
-    if(socket.request.user.logged_in == false){
+io.on('connection', function(socket) {
+    if (socket.request.user.logged_in == false) {
         socket.disconnect();
     }
 
-    socket.on('join-conversation', function(data){
+    socket.on('join-conversation', function(data) {
         console.log('join called');
 
-        passportSocketIo.filterSocketsByUser(io, function(user){
-          return user.logged_in == true;
-        }).forEach(function(socket){
-          if(socket.request.user.user_id == data.userId){
+        passportSocketIo.filterSocketsByUser(io, function(user) {
+            return user.logged_in == true;
+        }).forEach(function(socket) {
+            if (socket.request.user.user_id == data.userId) {
                 socket.join(data.group);
                 console.log('user ' + data.userId + ' has joined group ' + data.group);
-          }
+            }
         });
     });
 
-    socket.on('new-message', function(data){
+    socket.on('new-message', function(data) {
         console.log('new-message called');
-        socket.to(data.threadId).emit('new-message-receive',{threadId: data.threadId, hostId: data.hostId});
+        socket.to(data.threadId).emit('new-message-receive', { threadId: data.threadId, hostId: data.hostId });
     });
 
-    socket.on('disconnect', function(){
+    socket.on('disconnect', function() {
         console.log(socket.request.user.user_id + ' disconnected');
     });
 });
 
 app.post('/login', function(req, res, next) {
     console.log('/login called' + req.session.id);
-  passport.authenticate('local-login', function(err, user, info) {
-    if (err) { return next(err); }
-    // Redirect if it fails
-    if (!user) { return res.json(user); }
-    req.logIn(user, function(err) {
-      if (err) { return next(err); }
-      // Redirect if it succeeds
-      return res.json(user.user_id);
-      
-    });
-  })(req, res, next);
+    passport.authenticate('local-login', function(err, user, info) {
+        if (err) { return next(err); }
+        // Redirect if it fails
+        if (!user) { return res.json(user); }
+        req.logIn(user, function(err) {
+            if (err) { return next(err); }
+            // Redirect if it succeeds
+            return res.json(user.user_id);
+
+        });
+    })(req, res, next);
 });
 
-app.get('/logout', function(req, res){
+app.get('/logout', function(req, res) {
     console.log('/logout ' + req.session.id);
     req.logout();
     req.session.destroy();
-    res.clearCookie('aprimacookie', {path:'/'});
+    res.clearCookie('aprimacookie', { path: '/' });
     res.clearCookie('io');
-    res.json({'success': 'success'});
+    res.json({ 'success': 'success' });
 });
 
-app.get('/checkAuthentication', function(req, res){
+app.get('/checkAuthentication', function(req, res) {
     console.log('/checkAuthentication ' + req.session.id);
     var status = req.isAuthenticated();
     console.log(status);
-    res.json({'logged_in': status});
+    res.json({ 'loggedIn': status });
 });
 
 //======================================================================================//
@@ -210,13 +210,26 @@ app.get('/getContacts', function(req, res, next) {
                     rec_obj = [conversation_id, conversation_id];
                 } else if (toAdd == '0') {
                     insertSql = "SELECT DISTINCT UP.USER_ID AS USER_ID, " +
-                        "CONCAT(UP.FIRST_NAME, ' ', UP.LAST_NAME) AS NAME, UP.DESIGNATION AS DESIGNATION, " +
-                        "UP.PROFILE_PICTURE AS PROFILE_PICTURE, UP.USER_STATUS AS STATUS, " +
-                        "IF(UP.user_id in (SELECT MI1.user_id FROM member_information MI1 " +
-                        "WHERE MI1.conversation_id = ?), 1, null) AS IS_ACTIVE FROM user_profile UP " +
-                        "WHERE UP.user_id in (SELECT MI.USER_ID FROM member_information MI " +
-                        "WHERE MI.CONVERSATION_ID = ? AND MI.IS_ACTIVE = 1) ORDER BY NAME";
-                    rec_obj = [conversation_id, conversation_id];
+                        "CONCAT(UP.FIRST_NAME, ' ', UP.LAST_NAME) AS NAME, " +
+                        "UP.DESIGNATION AS DESIGNATION, " +
+                        "UP.PROFILE_PICTURE AS PROFILE_PICTURE, " +
+                        "UP.USER_STATUS AS STATUS, " +
+                        "IF(CI.owner = UP.user_id, 1, 0) AS IS_OWNER, " +
+                        "MI.admin AS IS_ADMIN, " +
+                        "IF(UP.user_id in (SELECT MI1.user_id " +
+                        "FROM member_information MI1 " +
+                        "WHERE MI1.conversation_id = ?), " +
+                        "1, null) AS IS_ACTIVE " +
+                        "FROM user_profile UP, conversation_information CI, member_information MI " +
+                        "WHERE UP.user_id in (SELECT MI.USER_ID " +
+                        "FROM member_information MI " +
+                        "WHERE MI.CONVERSATION_ID = ? " +
+                        "AND MI.IS_ACTIVE = 1) " +
+                        "AND CI.conversation_id = ? " +
+                        "AND MI.conversation_id = CI.conversation_id " +
+                        "AND MI.user_id = UP.user_id " +
+                        "ORDER BY NAME";
+                    rec_obj = [conversation_id, conversation_id, conversation_id];
                 } else if (toAdd == '2') {
                     insertSql = 'SELECT DISTINCT CONCAT(UP.first_name, " " , UP.last_name) AS NAME, ' +
                         'UP.designation AS DESIGNATION, UP.profile_picture AS PROFILE_PICTURE, ' +
@@ -257,8 +270,9 @@ app.get('/conversations', function(req, res, next) {
                 conn.query('SELECT DISTINCT CI.conversation_id AS CONVERSATION_ID, ' +
                     'IF(CI.is_group = 0, UP.PROFILE_PICTURE, CI.group_picture) AS PROFILE_PICTURE, ' +
                     'IF(CI.is_group = 0, CONCAT(UP.FIRST_NAME," ", UP.LAST_NAME), CI.group_name) AS NAME, ' +
-                    'T.TEXT_MESSAGE AS TEXT, T.IS_MEDIA AS IS_MEDIA, MI.admin AS ADMIN, ' +
-                    'IF(CI.is_group = 0, UP.user_status, NULL) AS STATUS, T.SEND_TIME AS SEND_TIME ' +
+                    'T.TEXT_MESSAGE AS TEXT, T.IS_MEDIA AS IS_MEDIA, MI.admin AS IS_ADMIN, ' +
+                    'IF(CI.owner = ?, 1, 0) AS IS_OWNER, ' +
+                    'IF(CI.is_group = 0, UP.user_status, "Black") AS STATUS, T.SEND_TIME AS SEND_TIME ' +
                     'FROM user_profile UP, text T, conversation_information CI, member_information MI, ' +
                     'member_information MI2, text_status TS ' +
                     'WHERE MI.USER_ID = ? ' +
@@ -271,10 +285,10 @@ app.get('/conversations', function(req, res, next) {
                     'AND MI.is_active = 1 ' +
                     'AND TS.member_id = MI.member_id ' +
                     'AND TS.is_deleted <> 1 ' +
-                    'GROUP BY T.conversation_id ORDER BY SEND_TIME DESC, NAME;', [host_id, host_id],
+                    'GROUP BY T.conversation_id ORDER BY SEND_TIME DESC, NAME;', [host_id, host_id, host_id],
                     function(err, rows, fields) {
                         if (err) {
-                            //console.log(query);
+                            console.log(query);
                             console.error('SQL error: ', err);
                             return next(err);
                         }
@@ -324,7 +338,7 @@ app.get('/getMessageThread', function(req, res, next) {
                             resUser.push(userObj);
                         }
                         res.json(resUser);
-                        //console.log(JSON.stringify(resUser));
+                        console.log(JSON.stringify(resUser));
                     });
             }
         });
@@ -337,6 +351,7 @@ app.get('/getMessageThread', function(req, res, next) {
 app.post('/sendMessage', function(req, res, next) {
     try {
         var reqObj = req.body;
+        console.log(reqObj);
         var new_date = Date() + '';
         new_date = new_date.substr(1, 23);
 
@@ -375,34 +390,28 @@ app.post('/addMember', function(req, res, next) {
         var newDate = Date() + '';
         newDate = newDate.substr(1, 25);
         var query = url.parse(req.url, true).query;
-        var conversation_id = query.conversationId;
-        var user_id = query.userId;
+        var conversationId = query.conversationId;
+        var userId = query.userId;
         var is_active = query.isActive;
         var insertSql;
         var insertValues;
-
+        var isActive;
+        var memberId;
         req.getConnection(function(err, conn) {
             if (err) {
                 console.error('SQL Connection error: ', err);
                 return next(err);
             } else {
                 if (is_active == 'null') {
-                    console.log('In is_active = true');
-                    insertSql = "INSERT INTO member_information SET ? ";
-                    insertValues = {
-                        "member_id": (++i + newDate),
-                        "conversation_id": conversation_id,
-                        "user_id": user_id,
-                        "join_time": newDate,
-                        "favorite": '0'
-                    };
-
+                    isActive = '0';
+                    memberId = (++i + newDate);
                 } else {
-                    console.log('In is_active = false');
-                    insertSql = "UPDATE member_information MI SET MI.IS_ACTIVE = 1 " +
-                        "WHERE MI.CONVERSATION_ID = ? AND MI.USER_ID = ?";
-                    insertValues = [conversation_id, user_id];
+                    isActive = '1';
+                    memberId = '0';
                 }
+
+                insertSql = "CALL add_member(?,?,?,?)";
+                insertValues = [conversationId, userId, isActive, memberId];
                 var query = conn.query(insertSql, insertValues, function(err, result) {
                     if (err) {
                         console.error('SQL error: ', err);
@@ -429,12 +438,14 @@ app.get('/newConversation', function(req, res, next) {
                 console.error('SQL Connection error: ', err);
                 return next(err);
             } else {
-                conn.query('SELECT DISTINCT MI1.conversation_id AS CONVERSATION_ID, MI1.admin AS ADMIN ' +
+                conn.query('SELECT DISTINCT MI1.conversation_id AS CONVERSATION_ID, ' +
+                    'IF(MI1.user_id = ?, MI1.admin, MI2.admin) AS IS_ADMIN, ' +
+                    'IF(CI.owner = ?, 1, 0) AS IS_OWNER ' +
                     'from member_information MI1, member_information MI2, conversation_information CI ' +
                     'where MI1.conversation_id = MI2.conversation_id and MI1.member_id <> MI2.member_id ' +
                     'and ((MI1.user_id = ? and MI2.user_id = ?) or (MI1.user_id = ? and MI2.user_id = ?)) ' +
                     'and CI.conversation_id = MI1.conversation_id ' +
-                    'and CI.is_group = 0;', [host_id, user_id, user_id, host_id],
+                    'and CI.is_group = 0;', [host_id, host_id, host_id, user_id, user_id, host_id],
                     function(err, rows, fields) {
                         if (err) {
                             console.log(query);
@@ -464,6 +475,73 @@ app.post('/createConversation', function(req, res, next) {
 
         var conversation_id_new = ++i + new_date;
         var reqObj = req.body;
+        console.log(reqObj);
+        req.getConnection(function(err, conn) {
+            if (err) {
+                console.error('SQL Connection error: ', err);
+                return next(err);
+            } else {
+                var insertSql = ["INSERT INTO conversation_information SET ?",
+                    "INSERT INTO member_information SET ?", "INSERT INTO member_information SET ?"
+                ];
+                var insertValues = [{
+                        "conversation_id": conversation_id_new,
+                        "group_name": 'DEFAULT',
+                        "conversation_created": new_date + '',
+                        "owner": reqObj.hostId,
+                        "group_picture": 'DEFAULT',
+                        "is_group": '0',
+                        "is_public": '0'
+                    },
+                    {
+                        "member_id": (++i + new_date),
+                        "conversation_id": conversation_id_new,
+                        "user_id": reqObj.hostId,
+                        "join_time": new_date,
+                        "favorite": '0',
+                        "is_active": '1',
+                        "admin": '1'
+
+                    },
+                    {
+                        "member_id": (++i + new_date),
+                        "conversation_id": conversation_id_new,
+                        "user_id": reqObj.userId,
+                        "join_time": new_date,
+                        "favorite": '0',
+                        "is_active": '1',
+                        "admin": '1'
+                    }
+                ];
+
+                for (var j = 0; j < 3; j++) {
+
+                    var query = conn.query(insertSql[j], insertValues[j], function(err, result) {
+                        if (err) {
+                            console.error('SQL error: ', err);
+                            return next(err);
+                        }
+                    });
+                }
+                res.json({ "CONVERSATION_ID": conversation_id_new });
+            }
+        });
+    } catch (ex) {
+        console.error("Internal error:" + ex);
+        return next(ex);
+    }
+});
+
+app.post('/createGroup', function(req, res, next) {
+    try {
+
+        var new_date = Date() + '';
+        new_date = new_date.substr(1, 23);
+
+        var conversation_id_new = ++i + new_date;
+        var reqObj = req.body;
+        var hostId;
+
         console.log(reqObj);
         req.getConnection(function(err, conn) {
             if (err) {
@@ -626,3 +704,36 @@ app.post('/deleteText', function(req, res, next) {
     }
 });
 
+app.post('/statusChange', function(req, res, next) {
+    try {
+        var query = url.parse(req.url, true).query;
+        var userId = query.userId;
+        var status = query.status;
+        var insertSql;
+        var val;
+
+
+        req.getConnection(function(err, conn) {
+            if (err) {
+                console.error('SQL Connection error: ', err);
+                return next(err);
+            } else {
+                insertSql = "CALL status_change(?,?)";
+                val = [userId, status];
+                var query = conn.query(insertSql, val,
+                    function(err, result) {
+                        if (err) {
+                            console.error('SQL error: ', err);
+                            return next(err);
+                        }
+                        console.log(result);
+                    });
+
+                res.json({ "success": "success" });
+            }
+        });
+    } catch (ex) {
+        console.error("Internal error:" + ex);
+        return next(ex);
+    }
+});
