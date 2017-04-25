@@ -35,8 +35,8 @@ app.use(bodyParser.urlencoded({ extended: false }));
 var options = {
     host: 'localhost',
     port: 3306,
-    user: 'keshri',
-    password: 'keshri',
+    user: 'root',
+    password: 'root',
     database: 'session'
 };
 
@@ -68,8 +68,8 @@ io.use(passportSocketIo.authorize({ //configure socket.io
 
 app.use(connection(mysql, {
     host: "localhost",
-    user: "keshri",
-    password: "keshri",
+    user: "root",
+    password: "root",
     database: "messaging"
 }, 'request'));
 
@@ -307,11 +307,12 @@ app.get('/conversations', function(req, res, next) {
     }
 });
 
-app.get('/getMessageThread', function(req, res, next) {
+app.get('/getMoreMessages', function(req, res, next) {
     try {
         var query = url.parse(req.url, true).query;
         var conversation_id = query.conversation_id;
-        var host_id = query.host_id
+        var host_id = query.host_id;
+        var text_id = query.text_id;
         req.getConnection(function(err, conn) {
             if (err) {
                 console.error('SQL Connection error: ', err);
@@ -325,7 +326,90 @@ app.get('/getMessageThread', function(req, res, next) {
                     'member_information MI, text_status TS WHERE T.conversation_id = ? ' +
                     'AND UP.user_id = T.sender_id AND T.conversation_id = CI.conversation_id ' +
                     'AND TS.text_id = T.text_id AND MI.user_id = ? AND MI.member_id = TS.member_id ' +
-                    'AND TS.is_deleted <> 1 ORDER BY SEND_TIME;', [conversation_id, host_id],
+                    'AND TS.is_deleted <> 1 AND T.send_time < (SELECT T.send_time from text T WHERE T.text_id = ?) ORDER BY SEND_TIME DESC LIMIT 10;', [conversation_id, host_id, text_id],
+                    function(err, rows, fields) {
+                        if (err) {
+                            console.log(query);
+                            console.error('SQL error: ', err);
+                            return next(err);
+                        }
+                        var resUser = [];
+                        for (var userIndex in rows) {
+                            var userObj = rows[userIndex];
+                            resUser.push(userObj);
+                        }
+                        res.json(resUser);
+                        console.log(JSON.stringify(resUser));
+                    });
+            }
+        });
+    } catch (ex) {
+        console.error("Internal error:" + ex);
+        return next(ex);
+    }
+});
+
+app.get('/getNewMessages', function(req, res, next) {
+    try {
+        var query = url.parse(req.url, true).query;
+        var conversation_id = query.conversation_id;
+        var host_id = query.host_id;
+        var text_id = query.text_id;
+        req.getConnection(function(err, conn) {
+            if (err) {
+                console.error('SQL Connection error: ', err);
+                return next(err);
+            } else {
+                conn.query('SELECT DISTINCT IF(CI.is_group = 1, ' +
+                    'CONCAT(UP.first_name," " , UP.last_name), "") ' +
+                    'AS NAME, CI.conversation_id AS CONVERSATION_ID, T.sender_id AS SENDER_ID, ' +
+                    'T.text_id AS TEXT_ID, T.text_message AS TEXT_MESSAGE, T.send_time AS SEND_TIME, ' +
+                    'CI.is_group AS IS_GROUP FROM user_profile UP, text T, conversation_information CI, ' +
+                    'member_information MI, text_status TS WHERE T.conversation_id = ? ' +
+                    'AND UP.user_id = T.sender_id AND T.conversation_id = CI.conversation_id ' +
+                    'AND TS.text_id = T.text_id AND MI.user_id = ? AND MI.member_id = TS.member_id ' +
+                    'AND TS.is_deleted <> 1 AND T.send_time > (SELECT T.send_time from text T WHERE T.text_id = ?) ORDER BY SEND_TIME DESC LIMIT 10;', [conversation_id, host_id, text_id],
+                    function(err, rows, fields) {
+                        if (err) {
+                            console.log(query);
+                            console.error('SQL error: ', err);
+                            return next(err);
+                        }
+                        var resUser = [];
+                        for (var userIndex in rows) {
+                            var userObj = rows[userIndex];
+                            resUser.push(userObj);
+                        }
+                        res.json(resUser);
+                        console.log(JSON.stringify(resUser));
+                    });
+            }
+        });
+    } catch (ex) {
+        console.error("Internal error:" + ex);
+        return next(ex);
+    }
+});
+
+app.get('/getMessageThread', function(req, res, next) {
+    try {
+        var query = url.parse(req.url, true).query;
+        var conversation_id = query.conversation_id;
+        var host_id = query.host_id;
+        req.getConnection(function(err, conn) {
+            if (err) {
+                console.error('SQL Connection error: ', err);
+                return next(err);
+            } else {
+                conn.query('SELECT DISTINCT IF(CI.is_group = 1, ' +
+                    'CONCAT(UP.first_name," " , UP.last_name), "") ' +
+                    'AS NAME, CI.conversation_id AS CONVERSATION_ID, T.sender_id AS SENDER_ID, ' +
+                    'T.text_id AS TEXT_ID, T.text_message AS TEXT_MESSAGE, T.send_time AS SEND_TIME, T.text_id AS TEXT_ID, ' +
+                    'CI.is_group AS IS_GROUP FROM user_profile UP, text T, conversation_information CI, ' +
+                    'member_information MI, text_status TS WHERE T.conversation_id = ? ' +
+                    'AND UP.user_id = T.sender_id AND T.conversation_id = CI.conversation_id ' +
+                    'AND TS.text_id = T.text_id AND MI.user_id = ? AND MI.member_id = TS.member_id ' +
+                    'AND TS.is_deleted <> 1 ORDER BY SEND_TIME DESC LIMIT 10;', [conversation_id, host_id],
                     function(err, rows, fields) {
                         if (err) {
                             console.log(query);
