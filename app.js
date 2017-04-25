@@ -594,7 +594,7 @@ app.post('/createConversation', function(req, res, next) {
                         "join_time": new_date,
                         "favorite": '0',
                         "is_active": '1',
-                        "admin": '1'
+                        "admin": '0'
                     }
                 ];
 
@@ -757,6 +757,55 @@ app.post('/deleteConversation', function(req, res, next) {
     }
 });
 
+app.post('/editMemberInformation', function(req, res, next) {
+    try {
+        var query = url.parse(req.url, true).query;
+        var userId = query.userId;
+        var conversationId = query.conversationId;
+        var requestKey = query.requestKey;
+        var memberId = null;
+        var insertSql;
+        var val;
+
+
+        req.getConnection(function(err, conn) {
+            if (err) {
+                console.error('SQL Connection error: ', err);
+                return next(err);
+            } else {
+                if (requestKey == 'admin') {
+                    insertSql = "CALL make_admin(?,?)";
+                    val = [userId, conversationId];
+                } else if (requestKey == 'favorite') {
+                    insertSql = "CALL make_favorite(?,?)";
+                    val = [userId, conversationId];
+                } else if (requestKey == 'addMember') {
+                    insertSql = "CALL add_member(?,?,?,?)";
+                    var newDate = Date() + '';
+                    newDate = newDate.substr(1, 25);
+                    memberId = (++i + newDate);
+                    val = [userId, conversationId, memberId, '1'];
+                } else if (requestKey == 'updateMember') {
+                    insertSql = "CALL add_member(?,?,?,?)";
+                    val = [userId, conversationId, memberId, '0'];
+                }
+                var query = conn.query(insertSql, val,
+                    function(err, result) {
+                        if (err) {
+                            console.error('SQL error: ', err);
+                            return next(err);
+                        }
+                        console.log(result);
+                    });
+
+                res.json({ "success": "success" });
+            }
+        });
+    } catch (ex) {
+        console.error("Internal error:" + ex);
+        return next(ex);
+    }
+});
 app.post('/deleteText', function(req, res, next) {
     try {
         var query = url.parse(req.url, true).query;
@@ -788,14 +837,14 @@ app.post('/deleteText', function(req, res, next) {
     }
 });
 
-app.post('/statusChange', function(req, res, next) {
+app.post('/editUserProfile', function(req, res, next) {
     try {
         var query = url.parse(req.url, true).query;
         var userId = query.userId;
         var status = query.status;
+        var requestKey = query.requestKey;
         var insertSql;
         var val;
-
 
         req.getConnection(function(err, conn) {
             if (err) {
