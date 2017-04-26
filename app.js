@@ -35,8 +35,8 @@ app.use(bodyParser.urlencoded({ extended: false }));
 var options = {
     host: 'localhost',
     port: 3306,
-    user: 'root',
-    password: 'root',
+    user: 'keshri',
+    password: 'keshri',
     database: 'session'
 };
 
@@ -68,8 +68,8 @@ io.use(passportSocketIo.authorize({ //configure socket.io
 
 app.use(connection(mysql, {
     host: "localhost",
-    user: "root",
-    password: "root",
+    user: "keshri",
+    password: "keshri",
     database: "messaging"
 }, 'request'));
 
@@ -156,25 +156,26 @@ app.get('/user/getUserGuid', function(req, res, next) {
     try {
         var query = url.parse(req.url, true).query;
         console.log(query);
-        var received_id = query.received_id;
-        console.log(received_id);
+        var receivedId = query.received_id;
+        console.log(receivedId);
         req.getConnection(function(err, conn) {
             if (err) {
                 console.error('SQL Connection error: ', err);
                 return next(err);
             } else {
-                conn.query('SELECT UP.USER_ID AS "UP_USER_ID" FROM user_profile UP ' +
-                    'WHERE UP.USER_ID = ?', [received_id],
+                conn.query('CALL get_user_id(?,@userId,@status)', [receivedId],
                     function(err, rows, fields) {
                         if (err) {
                             console.error('SQL error: ', err);
                             return next(err);
                         }
-                        var resUser = [];
-                        for (var userIndex in rows) {
-                            var userObj = rows[userIndex];
-                            resUser.push(userObj);
-                        }
+                        var resUser = rows[0];
+                        // for (var i = 0; i < (rows.length - 1); i++) {
+                        //     var userObj = rows[i];
+                        //     resUser.push(userObj);
+                        // }
+
+                        console.log("Result: " + JSON.stringify(resUser));
                         res.json(resUser);
                     });
             }
@@ -272,7 +273,8 @@ app.get('/conversations', function(req, res, next) {
                     'IF(CI.is_group = 0, CONCAT(UP.FIRST_NAME," ", UP.LAST_NAME), CI.group_name) AS NAME, ' +
                     'T.TEXT_MESSAGE AS TEXT, T.IS_MEDIA AS IS_MEDIA, MI.admin AS IS_ADMIN, ' +
                     'IF(CI.owner = ?, 1, 0) AS IS_OWNER, ' +
-                    'IF(CI.is_group = 0, UP.user_status, "Black") AS STATUS, T.SEND_TIME AS SEND_TIME ' +
+                    'IF(CI.is_group = 0, UP.user_status, "Black") AS STATUS, T.SEND_TIME AS SEND_TIME, ' +
+                    'MI.favorite AS FAVORITE ' +
                     'FROM user_profile UP, text T, conversation_information CI, member_information MI, ' +
                     'member_information MI2, text_status TS ' +
                     'WHERE MI.USER_ID = ? ' +
@@ -285,7 +287,7 @@ app.get('/conversations', function(req, res, next) {
                     'AND MI.is_active = 1 ' +
                     'AND TS.member_id = MI.member_id ' +
                     'AND TS.is_deleted <> 1 ' +
-                    'GROUP BY T.conversation_id ORDER BY SEND_TIME DESC, NAME;', [host_id, host_id, host_id],
+                    'GROUP BY T.conversation_id ORDER BY FAVORITE DESC, SEND_TIME DESC, NAME;', [host_id, host_id, host_id],
                     function(err, rows, fields) {
                         if (err) {
                             console.log(query);
@@ -322,11 +324,14 @@ app.get('/getMoreMessages', function(req, res, next) {
                     'CONCAT(UP.first_name," " , UP.last_name), "") ' +
                     'AS NAME, CI.conversation_id AS CONVERSATION_ID, T.sender_id AS SENDER_ID, ' +
                     'T.text_id AS TEXT_ID, T.text_message AS TEXT_MESSAGE, T.send_time AS SEND_TIME, ' +
+                    'MI.favorite AS FAVORITE, ' +
                     'CI.is_group AS IS_GROUP FROM user_profile UP, text T, conversation_information CI, ' +
                     'member_information MI, text_status TS WHERE T.conversation_id = ? ' +
                     'AND UP.user_id = T.sender_id AND T.conversation_id = CI.conversation_id ' +
                     'AND TS.text_id = T.text_id AND MI.user_id = ? AND MI.member_id = TS.member_id ' +
-                    'AND TS.is_deleted <> 1 AND T.send_time < (SELECT T.send_time from text T WHERE T.text_id = ?) ORDER BY SEND_TIME DESC LIMIT 10;', [conversation_id, host_id, text_id],
+                    'AND TS.is_deleted <> 1 ' +
+                    'AND T.send_time < (SELECT T.send_time from text T WHERE T.text_id = ?) ' +
+                    'ORDER BY SEND_TIME DESC LIMIT 10;', [conversation_id, host_id, text_id],
                     function(err, rows, fields) {
                         if (err) {
                             console.log(query);
@@ -364,11 +369,14 @@ app.get('/getNewMessages', function(req, res, next) {
                     'CONCAT(UP.first_name," " , UP.last_name), "") ' +
                     'AS NAME, CI.conversation_id AS CONVERSATION_ID, T.sender_id AS SENDER_ID, ' +
                     'T.text_id AS TEXT_ID, T.text_message AS TEXT_MESSAGE, T.send_time AS SEND_TIME, ' +
+                    'MI.favorite AS FAVORITE, ' +
                     'CI.is_group AS IS_GROUP FROM user_profile UP, text T, conversation_information CI, ' +
                     'member_information MI, text_status TS WHERE T.conversation_id = ? ' +
                     'AND UP.user_id = T.sender_id AND T.conversation_id = CI.conversation_id ' +
                     'AND TS.text_id = T.text_id AND MI.user_id = ? AND MI.member_id = TS.member_id ' +
-                    'AND TS.is_deleted <> 1 AND T.send_time > (SELECT T.send_time from text T WHERE T.text_id = ?) ORDER BY SEND_TIME DESC LIMIT 10;', [conversation_id, host_id, text_id],
+                    'AND TS.is_deleted <> 1 ' +
+                    'AND T.send_time > (SELECT T.send_time from text T WHERE T.text_id = ?) ' +
+                    'ORDER BY SEND_TIME DESC LIMIT 10;', [conversation_id, host_id, text_id],
                     function(err, rows, fields) {
                         if (err) {
                             console.log(query);
@@ -404,7 +412,8 @@ app.get('/getMessageThread', function(req, res, next) {
                 conn.query('SELECT DISTINCT IF(CI.is_group = 1, ' +
                     'CONCAT(UP.first_name," " , UP.last_name), "") ' +
                     'AS NAME, CI.conversation_id AS CONVERSATION_ID, T.sender_id AS SENDER_ID, ' +
-                    'T.text_id AS TEXT_ID, T.text_message AS TEXT_MESSAGE, T.send_time AS SEND_TIME, T.text_id AS TEXT_ID, ' +
+                    'T.text_id AS TEXT_ID, T.text_message AS TEXT_MESSAGE, T.send_time AS SEND_TIME, ' +
+                    'T.text_id AS TEXT_ID, MI.favorite AS FAVORITE, ' +
                     'CI.is_group AS IS_GROUP FROM user_profile UP, text T, conversation_information CI, ' +
                     'member_information MI, text_status TS WHERE T.conversation_id = ? ' +
                     'AND UP.user_id = T.sender_id AND T.conversation_id = CI.conversation_id ' +
@@ -424,86 +433,6 @@ app.get('/getMessageThread', function(req, res, next) {
                         res.json(resUser);
                         console.log(JSON.stringify(resUser));
                     });
-            }
-        });
-    } catch (ex) {
-        console.error("Internal error:" + ex);
-        return next(ex);
-    }
-});
-
-app.post('/sendMessage', function(req, res, next) {
-    try {
-        var reqObj = req.body;
-        console.log(reqObj);
-        var new_date = Date() + '';
-        new_date = new_date.substr(1, 23);
-
-
-        req.getConnection(function(err, conn) {
-            if (err) {
-                console.error('SQL Connection error: ', err);
-                return next(err);
-            } else {
-                var insertSql = "INSERT INTO text SET ?";
-                var insertValues = {
-                    "text_id": ++i + new_date,
-                    "conversation_id": reqObj.conversationId,
-                    "sender_id": reqObj.senderId,
-                    "text_message": reqObj.text,
-                    "is_media": '0'
-                };
-                var query = conn.query(insertSql, insertValues, function(err, result) {
-                    if (err) {
-                        console.error('SQL error: ', err);
-                        return next(err);
-                    }
-                    var text_id = insertValues.text_id;
-                    res.json({ "text_id": text_id });
-                });
-            }
-        });
-    } catch (ex) {
-        console.error("Internal error:" + ex);
-        return next(ex);
-    }
-});
-
-app.post('/addMember', function(req, res, next) {
-    try {
-        var newDate = Date() + '';
-        newDate = newDate.substr(1, 25);
-        var query = url.parse(req.url, true).query;
-        var conversationId = query.conversationId;
-        var userId = query.userId;
-        var is_active = query.isActive;
-        var insertSql;
-        var insertValues;
-        var isActive;
-        var memberId;
-        req.getConnection(function(err, conn) {
-            if (err) {
-                console.error('SQL Connection error: ', err);
-                return next(err);
-            } else {
-                if (is_active == 'null') {
-                    isActive = '0';
-                    memberId = (++i + newDate);
-                } else {
-                    isActive = '1';
-                    memberId = '0';
-                }
-
-                insertSql = "CALL add_member(?,?,?,?)";
-                insertValues = [conversationId, userId, isActive, memberId];
-                var query = conn.query(insertSql, insertValues, function(err, result) {
-                    if (err) {
-                        console.error('SQL error: ', err);
-                        return next(err);
-                    }
-                    var text_id = insertValues.text_id;
-                    res.json({ "success": "success" });
-                });
             }
         });
     } catch (ex) {
@@ -551,121 +480,44 @@ app.get('/newConversation', function(req, res, next) {
     }
 });
 
-app.post('/createConversation', function(req, res, next) {
-    try {
-
-        var new_date = Date() + '';
-        new_date = new_date.substr(1, 23);
-
-        var conversation_id_new = ++i + new_date;
-        var reqObj = req.body;
-        console.log(reqObj);
-        req.getConnection(function(err, conn) {
-            if (err) {
-                console.error('SQL Connection error: ', err);
-                return next(err);
-            } else {
-                var insertSql = ["INSERT INTO conversation_information SET ?",
-                    "INSERT INTO member_information SET ?", "INSERT INTO member_information SET ?"
-                ];
-                var insertValues = [{
-                        "conversation_id": conversation_id_new,
-                        "group_name": 'DEFAULT',
-                        "conversation_created": new_date + '',
-                        "owner": reqObj.hostId,
-                        "group_picture": 'DEFAULT',
-                        "is_group": '0',
-                        "is_public": '0'
-                    },
-                    {
-                        "member_id": (++i + new_date),
-                        "conversation_id": conversation_id_new,
-                        "user_id": reqObj.hostId,
-                        "join_time": new_date,
-                        "favorite": '0',
-                        "is_active": '1',
-                        "admin": '1'
-
-                    },
-                    {
-                        "member_id": (++i + new_date),
-                        "conversation_id": conversation_id_new,
-                        "user_id": reqObj.userId,
-                        "join_time": new_date,
-                        "favorite": '0',
-                        "is_active": '1',
-                        "admin": '0'
-                    }
-                ];
-
-                for (var j = 0; j < 3; j++) {
-
-                    var query = conn.query(insertSql[j], insertValues[j], function(err, result) {
-                        if (err) {
-                            console.error('SQL error: ', err);
-                            return next(err);
-                        }
-                    });
-                }
-                res.json({ "CONVERSATION_ID": conversation_id_new });
-            }
-        });
-    } catch (ex) {
-        console.error("Internal error:" + ex);
-        return next(ex);
-    }
-});
-
 app.post('/createGroup', function(req, res, next) {
     try {
 
         var new_date = Date() + '';
         new_date = new_date.substr(1, 23);
 
-        var conversation_id_new = ++i + new_date;
+        var conversationId = ++i + new_date;
         var reqObj = req.body;
-        var hostId;
+        var hostId = reqObj.hostId;
+        var groupName = reqObj.groupName;
+        var userList = reqObj.userList;
+        var insertSql = [];
+        var insertValues = [];
+        var userSql = "Call add_member(?,?,?)";
+        var userValue;
+        var memberId;
 
-        console.log(reqObj);
+        console.log(userList);
         req.getConnection(function(err, conn) {
             if (err) {
                 console.error('SQL Connection error: ', err);
                 return next(err);
             } else {
-                var insertSql = ["INSERT INTO conversation_information SET ?",
-                    "INSERT INTO member_information SET ?", "INSERT INTO member_information SET ?"
-                ];
-                var insertValues = [{
-                        "conversation_id": conversation_id_new,
-                        "group_name": 'DEFAULT',
-                        "conversation_created": new_date + '',
-                        "owner": reqObj.hostId,
-                        "group_picture": 'DEFAULT',
-                        "is_group": '0',
-                        "is_public": '0'
-                    },
-                    {
-                        "member_id": (++i + new_date),
-                        "conversation_id": conversation_id_new,
-                        "user_id": reqObj.hostId,
-                        "join_time": new_date,
-                        "favorite": '0',
-                        "is_active": '1',
-                        "admin": '1'
+                memberId = (++i + new_date);
+                var groupSql = "Call create_group(?,?,?,?)";
+                insertSql.push(groupSql);
+                userValue = [hostId, groupName, conversationId, memberId];
+                insertValues.push(userValue);
 
-                    },
-                    {
-                        "member_id": (++i + new_date),
-                        "conversation_id": conversation_id_new,
-                        "user_id": reqObj.userId,
-                        "join_time": new_date,
-                        "favorite": '0',
-                        "is_active": '1',
-                        "admin": '1'
-                    }
-                ];
+                for (var j = 0; j < userList.length; j++) {
+                    memberId = (++i + new_date);
+                    console.log("user: " + userList[j] + " conver: " + conversationId + " mem: " + memberId);
+                    userValue = [userList[j], conversationId, memberId];
+                    insertSql.push(userSql);
+                    insertValues.push(userValue);
+                }
 
-                for (var j = 0; j < 3; j++) {
+                for (var j = 0; j < insertSql.length; j++) {
 
                     var query = conn.query(insertSql[j], insertValues[j], function(err, result) {
                         if (err) {
@@ -674,7 +526,7 @@ app.post('/createGroup', function(req, res, next) {
                         }
                     });
                 }
-                res.json({ "CONVERSATION_ID": conversation_id_new });
+                res.json({ "CONVERSATION_ID": conversationId });
             }
         });
     } catch (ex) {
@@ -757,15 +609,56 @@ app.post('/deleteConversation', function(req, res, next) {
     }
 });
 
+app.post('/editConversationInformation', function(req, res, next) {
+    try {
+
+        var new_date = Date() + '';
+        new_date = new_date.substr(1, 23);
+        var conversationId;
+        var reqObj = req.body;
+        var requestKey = req.requestKey;
+        var insertSql;
+        var insertValues;
+        console.log(reqObj);
+        req.getConnection(function(err, conn) {
+            if (err) {
+                console.error('SQL Connection error: ', err);
+                return next(err);
+            } else {
+                if (requestKey == 'createConversation') {
+                    conversationId = (++i) + new_date;
+                    var hostId = reqObj.hostId;
+                    var userId = reqObj.userId;
+                    var memberId1 = (++i) + new_date;
+                    var memberId2 = (++i) + new_date;
+                    insertSql = "Call create_conversation(?,?,?,?,?)";
+                    insertValues = [conversationId, hostId, userId, memberId1, memberId2];
+                }
+
+                var query = conn.query(insertSql, insertValues, function(err, result) {
+                    if (err) {
+                        console.error('SQL error: ', err);
+                        return next(err);
+                    }
+                });
+                res.json({ "CONVERSATION_ID": conversationId });
+            }
+        });
+    } catch (ex) {
+        console.error("Internal error:" + ex);
+        return next(ex);
+    }
+});
+
 app.post('/editMemberInformation', function(req, res, next) {
     try {
-        var query = url.parse(req.url, true).query;
-        var userId = query.userId;
-        var conversationId = query.conversationId;
-        var requestKey = query.requestKey;
+        var reqObj = req.body;
+        var userId = reqObj.userId;
+        var conversationId = reqObj.conversationId;
+        var requestKey = reqObj.requestKey;
         var memberId = null;
         var insertSql;
-        var val;
+        var val = [];
 
 
         req.getConnection(function(err, conn) {
@@ -775,59 +668,32 @@ app.post('/editMemberInformation', function(req, res, next) {
             } else {
                 if (requestKey == 'admin') {
                     insertSql = "CALL make_admin(?,?)";
-                    val = [userId, conversationId];
+                    var v = [userId, conversationId];
+                    val.push(v);
                 } else if (requestKey == 'favorite') {
                     insertSql = "CALL make_favorite(?,?)";
-                    val = [userId, conversationId];
+                    var v = [userId, conversationId];
+                    val.push(v);
                 } else if (requestKey == 'addMember') {
-                    insertSql = "CALL add_member(?,?,?,?)";
+                    insertSql = "CALL add_member(?,?,?)";
                     var newDate = Date() + '';
                     newDate = newDate.substr(1, 25);
                     memberId = (++i + newDate);
-                    val = [userId, conversationId, memberId, '1'];
-                } else if (requestKey == 'updateMember') {
-                    insertSql = "CALL add_member(?,?,?,?)";
-                    val = [userId, conversationId, memberId, '0'];
+                    for (var i = 0; i < userId.length; i++) {
+                        var v = [userId[i], conversationId, memberId];
+                        val.push(v);
+                    }
                 }
-                var query = conn.query(insertSql, val,
-                    function(err, result) {
-                        if (err) {
-                            console.error('SQL error: ', err);
-                            return next(err);
-                        }
-                        console.log(result);
-                    });
-
-                res.json({ "success": "success" });
-            }
-        });
-    } catch (ex) {
-        console.error("Internal error:" + ex);
-        return next(ex);
-    }
-});
-app.post('/deleteText', function(req, res, next) {
-    try {
-        var query = url.parse(req.url, true).query;
-        var host_id = query.hostId;
-        var text_id = query.textId;
-
-
-        req.getConnection(function(err, conn) {
-            if (err) {
-                console.error('SQL Connection error: ', err);
-                return next(err);
-            } else {
-                var query = conn.query("UPDATE text_status TS, member_information MI SET TS.is_deleted = 1 " +
-                    "WHERE TS.member_id = MI.member_id AND TS.text_id = ? " +
-                    "AND MI.user_id = ?", [text_id, host_id],
-                    function(err, result) {
-                        if (err) {
-                            console.error('SQL error: ', err);
-                            return next(err);
-                        }
-                        console.log(result);
-                    });
+                for (var i = 0; i < val.length; i++) {
+                    var query = conn.query(insertSql, val[i],
+                        function(err, result) {
+                            if (err) {
+                                console.error('SQL error: ', err);
+                                return next(err);
+                            }
+                            console.log(result);
+                        });
+                }
                 res.json({ "success": "success" });
             }
         });
@@ -851,8 +717,15 @@ app.post('/editUserProfile', function(req, res, next) {
                 console.error('SQL Connection error: ', err);
                 return next(err);
             } else {
-                insertSql = "CALL status_change(?,?)";
-                val = [userId, status];
+                if (requestKey == 'status') {
+                    console.log("In Status");
+                    insertSql = "CALL user_status(?,?)";
+                    val = [userId, status];
+                } else if (requestKey == 'lastActivity') {
+                    console.log("In Last Activity");
+                    insertSql = "CALL user_last_activity(?)";
+                    val = [userId];
+                }
                 var query = conn.query(insertSql, val,
                     function(err, result) {
                         if (err) {
@@ -862,6 +735,81 @@ app.post('/editUserProfile', function(req, res, next) {
                         console.log(result);
                     });
 
+                res.json({ "success": "success" });
+            }
+        });
+    } catch (ex) {
+        console.error("Internal error:" + ex);
+        return next(ex);
+    }
+});
+
+app.post('/editText', function(req, res, next) {
+    try {
+        var reqObj = req.body;
+        var textId = reqObj.textId;
+        var conversationId = reqObj.conversationId;
+        var userId = reqObj.userId;
+        var textMessage = reqObj.textMessage;
+        var stat = reqObj.stat;
+        var requestKey = reqObj.requestKey;
+        var insertSql;
+        var val;
+
+        req.getConnection(function(err, conn) {
+            if (err) {
+                console.error('SQL Connection error: ', err);
+                return next(err);
+            } else {
+                if (requestKey == 'statMessage') {
+                    console.log("In Stat Message");
+                    insertSql = "CALL make_stat(?)";
+                    val = [textId];
+                } else if (requestKey == 'sendMessage') {
+                    console.log("In Send Message");
+                    insertSql = "CALL send_message(?,?,?,?,?)";
+                    val = [textId, conversationId, userId, textMessage, stat];
+                }
+                var query = conn.query(insertSql, val,
+                    function(err, result) {
+                        if (err) {
+                            console.error('SQL error: ', err);
+                            return next(err);
+                        }
+                        console.log(result);
+                    });
+
+                res.json({ "success": "success" });
+            }
+        });
+    } catch (ex) {
+        console.error("Internal error:" + ex);
+        return next(ex);
+    }
+});
+
+app.post('/deleteText', function(req, res, next) {
+    try {
+        var query = url.parse(req.url, true).query;
+        var host_id = query.hostId;
+        var text_id = query.textId;
+
+
+        req.getConnection(function(err, conn) {
+            if (err) {
+                console.error('SQL Connection error: ', err);
+                return next(err);
+            } else {
+                var query = conn.query("UPDATE text_status TS, member_information MI SET TS.is_deleted = 1 " +
+                    "WHERE TS.member_id = MI.member_id AND TS.text_id = ? " +
+                    "AND MI.user_id = ?", [text_id, host_id],
+                    function(err, result) {
+                        if (err) {
+                            console.error('SQL error: ', err);
+                            return next(err);
+                        }
+                        console.log(result);
+                    });
                 res.json({ "success": "success" });
             }
         });
