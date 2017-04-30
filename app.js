@@ -104,7 +104,7 @@ io.on('connection', function(socket) {
             if (socket.request.user.user_id == data.userId) {
                 socket.join(data.group);
                 console.log('user ' + data.userId + ' has joined group ' + data.group);
-                console.log
+                console.log(io.nsps['/'].adapter.rooms[data.group].length);
             }
         });
     });
