@@ -35,8 +35,8 @@ app.use(bodyParser.urlencoded({ extended: false }));
 var options = {
     host: 'localhost',
     port: 3306,
-    user: 'keshri',
-    password: 'keshri',
+    user: 'root',
+    password: 'root',
     database: 'session'
 };
 
@@ -68,8 +68,8 @@ io.use(passportSocketIo.authorize({ //configure socket.io
 
 app.use(connection(mysql, {
     host: "localhost",
-    user: "keshri",
-    password: "keshri",
+    user: "root",
+    password: "root",
     database: "messaging"
 }, 'request'));
 
@@ -749,13 +749,13 @@ app.post('/editText', function(req, res, next) {
         var reqObj = req.body;
         var textId = reqObj.textId;
         var conversationId = reqObj.conversationId;
-        var userId = reqObj.userId;
+        var userId = reqObj.senderId;
         var textMessage = reqObj.textMessage;
         var stat = reqObj.stat;
         var requestKey = reqObj.requestKey;
         var insertSql;
         var val;
-
+        var i = 0;
         req.getConnection(function(err, conn) {
             if (err) {
                 console.error('SQL Connection error: ', err);
@@ -767,8 +767,11 @@ app.post('/editText', function(req, res, next) {
                     val = [textId];
                 } else if (requestKey == 'sendMessage') {
                     console.log("In Send Message");
+                    var date = new Date() + '';
+                    date = date.substr(1,25);
+                    newTextId = (++i) + date;
                     insertSql = "CALL send_message(?,?,?,?,?)";
-                    val = [textId, conversationId, userId, textMessage, stat];
+                    val = [newTextId, conversationId, userId, textMessage, stat];
                 }
                 var query = conn.query(insertSql, val,
                     function(err, result) {
