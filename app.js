@@ -104,6 +104,7 @@ io.on('connection', function(socket) {
             if (socket.request.user.user_id == data.userId) {
                 socket.join(data.group);
                 console.log('user ' + data.userId + ' has joined group ' + data.group);
+                console.log
             }
         });
     });
@@ -418,7 +419,7 @@ app.get('/getMessageThread', function(req, res, next) {
                     'member_information MI, text_status TS WHERE T.conversation_id = ? ' +
                     'AND UP.user_id = T.sender_id AND T.conversation_id = CI.conversation_id ' +
                     'AND TS.text_id = T.text_id AND MI.user_id = ? AND MI.member_id = TS.member_id ' +
-                    'AND TS.is_deleted <> 1 ORDER BY SEND_TIME DESC LIMIT 10;', [conversation_id, host_id],
+                    'AND TS.is_deleted <> 1 ORDER BY SEND_TIME;', [conversation_id, host_id],
                     function(err, rows, fields) {
                         if (err) {
                             console.log(query);
@@ -431,7 +432,6 @@ app.get('/getMessageThread', function(req, res, next) {
                             resUser.push(userObj);
                         }
                         res.json(resUser);
-                        console.log(JSON.stringify(resUser));
                     });
             }
         });
