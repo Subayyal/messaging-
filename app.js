@@ -1,4 +1,5 @@
 var app = require('express')();
+var guid = require('guid');
 var url = require('url');
 var server = require('http').Server(app);
 var io = require('socket.io')(server);
@@ -419,7 +420,7 @@ app.get('/getMessageThread', function(req, res, next) {
                     'member_information MI, text_status TS WHERE T.conversation_id = ? ' +
                     'AND UP.user_id = T.sender_id AND T.conversation_id = CI.conversation_id ' +
                     'AND TS.text_id = T.text_id AND MI.user_id = ? AND MI.member_id = TS.member_id ' +
-                    'AND TS.is_deleted <> 1 ORDER BY SEND_TIME;', [conversation_id, host_id],
+                    'AND TS.is_deleted <> 1 ORDER BY SEND_TIME DESC LIMIT 10;', [conversation_id, host_id],
                     function(err, rows, fields) {
                         if (err) {
                             console.log(query);
@@ -676,11 +677,11 @@ app.post('/editMemberInformation', function(req, res, next) {
                     val.push(v);
                 } else if (requestKey == 'addMember') {
                     insertSql = "CALL add_member(?,?,?)";
-                    var newDate = Date() + '';
-                    newDate = newDate.substr(1, 25);
-                    memberId = (++i + newDate);
-                    for (var i = 0; i < userId.length; i++) {
-                        var v = [userId[i], conversationId, memberId];
+                    
+                    for (var j = 0; j < userId.length; j++) {
+                        var Id = guid.create() + '';
+                        memberId = Id.substr(0,30);
+                        var v = [userId[j], conversationId, memberId];
                         val.push(v);
                     }
                 }
@@ -695,7 +696,7 @@ app.post('/editMemberInformation', function(req, res, next) {
                         });
                 }
                 res.json({ "success": "success" });
-            }
+            }   
         });
     } catch (ex) {
         console.error("Internal error:" + ex);
@@ -780,9 +781,10 @@ app.post('/editText', function(req, res, next) {
                             return next(err);
                         }
                         console.log(result);
+                        res.json({ "success": "success" });
                     });
 
-                res.json({ "success": "success" });
+                
             }
         });
     } catch (ex) {
