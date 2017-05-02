@@ -36,8 +36,8 @@ app.use(bodyParser.urlencoded({ extended: false }));
 var options = {
     host: 'localhost',
     port: 3306,
-    user: 'root',
-    password: 'root',
+    user: 'keshri',
+    password: 'keshri',
     database: 'session'
 };
 
@@ -69,8 +69,8 @@ io.use(passportSocketIo.authorize({ //configure socket.io
 
 app.use(connection(mysql, {
     host: "localhost",
-    user: "root",
-    password: "root",
+    user: "keshri",
+    password: "keshri",
     database: "messaging"
 }, 'request'));
 
@@ -617,7 +617,7 @@ app.post('/editConversationInformation', function(req, res, next) {
         new_date = new_date.substr(1, 23);
         var conversationId;
         var reqObj = req.body;
-        var requestKey = req.requestKey;
+        var requestKey = reqObj.requestKey;
         var insertSql;
         var insertValues;
         console.log(reqObj);
@@ -627,6 +627,7 @@ app.post('/editConversationInformation', function(req, res, next) {
                 return next(err);
             } else {
                 if (requestKey == 'createConversation') {
+                    console.log('in here!!!');
                     conversationId = (++i) + new_date;
                     var hostId = reqObj.hostId;
                     var userId = reqObj.userId;
@@ -641,8 +642,9 @@ app.post('/editConversationInformation', function(req, res, next) {
                         console.error('SQL error: ', err);
                         return next(err);
                     }
+                    res.json({ "CONVERSATION_ID": conversationId });
                 });
-                res.json({ "CONVERSATION_ID": conversationId });
+
             }
         });
     } catch (ex) {
@@ -677,10 +679,10 @@ app.post('/editMemberInformation', function(req, res, next) {
                     val.push(v);
                 } else if (requestKey == 'addMember') {
                     insertSql = "CALL add_member(?,?,?)";
-                    
+
                     for (var j = 0; j < userId.length; j++) {
                         var Id = guid.create() + '';
-                        memberId = Id.substr(0,30);
+                        memberId = Id.substr(0, 30);
                         var v = [userId[j], conversationId, memberId];
                         val.push(v);
                     }
@@ -696,7 +698,7 @@ app.post('/editMemberInformation', function(req, res, next) {
                         });
                 }
                 res.json({ "success": "success" });
-            }   
+            }
         });
     } catch (ex) {
         console.error("Internal error:" + ex);
@@ -769,7 +771,7 @@ app.post('/editText', function(req, res, next) {
                 } else if (requestKey == 'sendMessage') {
                     console.log("In Send Message");
                     var date = new Date() + '';
-                    date = date.substr(1,25);
+                    date = date.substr(1, 25);
                     newTextId = (++i) + date;
                     insertSql = "CALL send_message(?,?,?,?,?)";
                     val = [newTextId, conversationId, userId, textMessage, stat];
@@ -784,7 +786,7 @@ app.post('/editText', function(req, res, next) {
                         res.json({ "success": "success" });
                     });
 
-                
+
             }
         });
     } catch (ex) {
