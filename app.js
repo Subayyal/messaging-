@@ -36,8 +36,8 @@ app.use(bodyParser.urlencoded({ extended: false }));
 var options = {
     host: 'localhost',
     port: 3306,
-    user: 'keshri',
-    password: 'keshri',
+    user: 'root',
+    password: 'root',
     database: 'session'
 };
 
@@ -69,8 +69,8 @@ io.use(passportSocketIo.authorize({ //configure socket.io
 
 app.use(connection(mysql, {
     host: "localhost",
-    user: "keshri",
-    password: "keshri",
+    user: "root",
+    password: "root",
     database: "messaging"
 }, 'request'));
 
@@ -108,6 +108,19 @@ io.on('connection', function(socket) {
                 console.log(io.nsps['/'].adapter.rooms[data.group].length);
             }
         });
+    });
+
+    socket.on('new-conversation', function(data){
+        console.log('new-conversation called ');
+        passportSocketIo.filterSocketsByUser(io, function(user) {
+            return user.logged_in == true;
+        }).forEach(function(socket) {
+            if (socket.request.user.user_id == data.userId || socket.request.user.user_id == data.hostId) {
+                socket.join(data.threadId);
+                console.log('user ' + data.userId + ' has joined group ' + data.threadId);
+            }
+        });
+        socket.to(data.threadId).emit('new-conversation-created', { threadId: data.threadId, from: data.hostId  });
     });
 
     socket.on('new-message', function(data) {

@@ -7,8 +7,8 @@ var mysql = require('mysql');
 
 var connection = mysql.createConnection({
     host: 'localhost',
-    user: 'keshri',
-    password: 'keshri'
+    user: 'root',
+    password: 'root'
 });
 
 connection.query('USE messaging');
