@@ -36,8 +36,8 @@ app.use(bodyParser.urlencoded({ extended: false }));
 var options = {
     host: 'localhost',
     port: 3306,
-    user: 'root',
-    password: 'root',
+    user: 'keshri',
+    password: 'keshri',
     database: 'session'
 };
 
@@ -69,8 +69,8 @@ io.use(passportSocketIo.authorize({ //configure socket.io
 
 app.use(connection(mysql, {
     host: "localhost",
-    user: "root",
-    password: "root",
+    user: "keshri",
+    password: "keshri",
     database: "messaging"
 }, 'request'));
 
@@ -110,7 +110,7 @@ io.on('connection', function(socket) {
         });
     });
 
-    socket.on('new-conversation', function(data){
+    socket.on('new-conversation', function(data) {
         console.log('new-conversation called ');
         passportSocketIo.filterSocketsByUser(io, function(user) {
             return user.logged_in == true;
@@ -120,7 +120,7 @@ io.on('connection', function(socket) {
                 console.log('user ' + data.userId + ' has joined group ' + data.threadId);
             }
         });
-        socket.to(data.threadId).emit('new-conversation-created', { threadId: data.threadId, from: data.hostId  });
+        socket.to(data.threadId).emit('new-conversation-created', { threadId: data.threadId, from: data.hostId });
     });
 
     socket.on('new-message', function(data) {
@@ -336,17 +336,21 @@ app.get('/getMoreMessages', function(req, res, next) {
                 return next(err);
             } else {
                 conn.query('SELECT DISTINCT IF(CI.is_group = 1, ' +
-                    'CONCAT(UP.first_name," " , UP.last_name), "") ' +
-                    'AS NAME, CI.conversation_id AS CONVERSATION_ID, T.sender_id AS SENDER_ID, ' +
-                    'T.text_id AS TEXT_ID, T.text_message AS TEXT_MESSAGE, T.send_time AS SEND_TIME, ' +
-                    'MI.favorite AS FAVORITE, ' +
-                    'CI.is_group AS IS_GROUP FROM user_profile UP, text T, conversation_information CI, ' +
-                    'member_information MI, text_status TS WHERE T.conversation_id = ? ' +
-                    'AND UP.user_id = T.sender_id AND T.conversation_id = CI.conversation_id ' +
-                    'AND TS.text_id = T.text_id AND MI.user_id = ? AND MI.member_id = TS.member_id ' +
+                    'CONCAT(UP.first_name," " , UP.last_name), "") AS NAME, ' +
+                    'CI.conversation_id AS CONVERSATION_ID, T.sender_id AS SENDER_ID, T.text_id AS TEXT_ID, ' +
+                    'MI.user_id AS USER_ID, T.text_message AS TEXT_MESSAGE, T.send_time AS SEND_TIME, ' +
+                    'T.text_id AS TEXT_ID, MI.favorite AS FAVORITE, CI.is_group AS IS_GROUP ' +
+                    'FROM user_profile UP, text T, conversation_information CI, member_information MI, ' +
+                    'text_status TS WHERE CI.conversation_id = ? ' +
+                    'AND MI.member_id = T.sender_id ' +
+                    'AND MI.conversation_id = CI.conversation_id ' +
+                    'AND T.conversation_id = CI.conversation_id ' +
+                    'AND TS.text_id = T.text_id ' +
+                    'AND MI.member_id = TS.member_id ' +
                     'AND TS.is_deleted <> 1 ' +
+                    'AND UP.user_id = MI.user_id ' +
                     'AND T.send_time < (SELECT T.send_time from text T WHERE T.text_id = ?) ' +
-                    'ORDER BY SEND_TIME DESC LIMIT 10;', [conversation_id, host_id, text_id],
+                    'ORDER BY SEND_TIME DESC LIMIT 10;', [conversation_id, text_id],
                     function(err, rows, fields) {
                         if (err) {
                             console.log(query);
@@ -381,17 +385,21 @@ app.get('/getNewMessages', function(req, res, next) {
                 return next(err);
             } else {
                 conn.query('SELECT DISTINCT IF(CI.is_group = 1, ' +
-                    'CONCAT(UP.first_name," " , UP.last_name), "") ' +
-                    'AS NAME, CI.conversation_id AS CONVERSATION_ID, T.sender_id AS SENDER_ID, ' +
-                    'T.text_id AS TEXT_ID, T.text_message AS TEXT_MESSAGE, T.send_time AS SEND_TIME, ' +
-                    'MI.favorite AS FAVORITE, ' +
-                    'CI.is_group AS IS_GROUP FROM user_profile UP, text T, conversation_information CI, ' +
-                    'member_information MI, text_status TS WHERE T.conversation_id = ? ' +
-                    'AND UP.user_id = T.sender_id AND T.conversation_id = CI.conversation_id ' +
-                    'AND TS.text_id = T.text_id AND MI.user_id = ? AND MI.member_id = TS.member_id ' +
+                    'CONCAT(UP.first_name," " , UP.last_name), "") AS NAME, ' +
+                    'CI.conversation_id AS CONVERSATION_ID, T.sender_id AS SENDER_ID, T.text_id AS TEXT_ID, ' +
+                    'MI.user_id AS USER_ID, T.text_message AS TEXT_MESSAGE, T.send_time AS SEND_TIME, ' +
+                    'T.text_id AS TEXT_ID, MI.favorite AS FAVORITE, CI.is_group AS IS_GROUP ' +
+                    'FROM user_profile UP, text T, conversation_information CI, member_information MI, ' +
+                    'text_status TS WHERE CI.conversation_id = ? ' +
+                    'AND MI.member_id = T.sender_id ' +
+                    'AND MI.conversation_id = CI.conversation_id ' +
+                    'AND T.conversation_id = CI.conversation_id ' +
+                    'AND TS.text_id = T.text_id ' +
+                    'AND MI.member_id = TS.member_id ' +
                     'AND TS.is_deleted <> 1 ' +
+                    'AND UP.user_id = MI.user_id ' +
                     'AND T.send_time > (SELECT T.send_time from text T WHERE T.text_id = ?) ' +
-                    'ORDER BY SEND_TIME DESC LIMIT 10;', [conversation_id, host_id, text_id],
+                    'ORDER BY SEND_TIME DESC LIMIT 10;', [conversation_id, text_id],
                     function(err, rows, fields) {
                         if (err) {
                             console.log(query);
@@ -425,15 +433,21 @@ app.get('/getMessageThread', function(req, res, next) {
                 return next(err);
             } else {
                 conn.query('SELECT DISTINCT IF(CI.is_group = 1, ' +
-                    'CONCAT(UP.first_name," " , UP.last_name), "") ' +
-                    'AS NAME, CI.conversation_id AS CONVERSATION_ID, T.sender_id AS SENDER_ID, ' +
-                    'T.text_id AS TEXT_ID, T.text_message AS TEXT_MESSAGE, T.send_time AS SEND_TIME, ' +
-                    'T.text_id AS TEXT_ID, MI.favorite AS FAVORITE, ' +
-                    'CI.is_group AS IS_GROUP FROM user_profile UP, text T, conversation_information CI, ' +
-                    'member_information MI, text_status TS WHERE T.conversation_id = ? ' +
-                    'AND UP.user_id = T.sender_id AND T.conversation_id = CI.conversation_id ' +
-                    'AND TS.text_id = T.text_id AND MI.user_id = ? AND MI.member_id = TS.member_id ' +
-                    'AND TS.is_deleted <> 1 ORDER BY SEND_TIME DESC LIMIT 10;', [conversation_id, host_id],
+                    'CONCAT(UP.first_name," " , UP.last_name), "") AS NAME, ' +
+                    'CI.conversation_id AS CONVERSATION_ID, T.sender_id AS SENDER_ID, T.text_id AS TEXT_ID, ' +
+                    'MI.user_id AS USER_ID, T.text_message AS TEXT_MESSAGE, T.send_time AS SEND_TIME, ' +
+                    'T.text_id AS TEXT_ID, MI.favorite AS FAVORITE, CI.is_group AS IS_GROUP ' +
+                    'FROM user_profile UP, text T, conversation_information CI, member_information MI, ' +
+                    'text_status TS WHERE CI.conversation_id = ? ' +
+                    'AND MI.member_id = T.sender_id ' +
+                    'AND MI.conversation_id = CI.conversation_id ' +
+                    'AND T.conversation_id = CI.conversation_id ' +
+                    'AND TS.text_id = T.text_id ' +
+                    'AND MI.member_id = TS.member_id ' +
+                    'AND TS.is_deleted <> 1 ' +
+                    'AND UP.user_id = MI.user_id ' +
+                    'ORDER BY SEND_TIME ' +
+                    'DESC LIMIT 10', [conversation_id],
                     function(err, rows, fields) {
                         if (err) {
                             console.log(query);
@@ -771,7 +785,6 @@ app.post('/editText', function(req, res, next) {
         var requestKey = reqObj.requestKey;
         var insertSql;
         var val;
-        var i = 0;
         req.getConnection(function(err, conn) {
             if (err) {
                 console.error('SQL Connection error: ', err);
@@ -781,8 +794,10 @@ app.post('/editText', function(req, res, next) {
                     console.log("In Stat Message");
                     insertSql = "CALL make_stat(?)";
                     val = [textId];
+                } else if (requestKey == 'deteleText') {
+                    insertSql = "CALL delete_text(?)";
+                    val = [textId];
                 } else if (requestKey == 'sendMessage') {
-                    console.log("In Send Message");
                     var date = new Date() + '';
                     date = date.substr(1, 25);
                     newTextId = (++i) + date;
@@ -798,8 +813,6 @@ app.post('/editText', function(req, res, next) {
                         console.log(result);
                         res.json({ "success": "success" });
                     });
-
-
             }
         });
     } catch (ex) {
@@ -808,21 +821,25 @@ app.post('/editText', function(req, res, next) {
     }
 });
 
-app.post('/deleteText', function(req, res, next) {
+app.post('/editTextStatus', function(req, res, next) {
     try {
-        var query = url.parse(req.url, true).query;
-        var host_id = query.hostId;
-        var text_id = query.textId;
-
+        var reqObj = req.body;
+        var userId = reqObj.userId;
+        var textId = reqObj.textId;
+        var requestKey = reqObj.requestKey;
+        var insertSql;
+        var val;
 
         req.getConnection(function(err, conn) {
             if (err) {
                 console.error('SQL Connection error: ', err);
                 return next(err);
             } else {
-                var query = conn.query("UPDATE text_status TS, member_information MI SET TS.is_deleted = 1 " +
-                    "WHERE TS.member_id = MI.member_id AND TS.text_id = ? " +
-                    "AND MI.user_id = ?", [text_id, host_id],
+                if (requestKey == 'clearText') {
+                    insertSql = "CALL clear_text(?,?)";
+                    val = [textId, userId];
+                }
+                var query = conn.query(insertSql, val,
                     function(err, result) {
                         if (err) {
                             console.error('SQL error: ', err);
