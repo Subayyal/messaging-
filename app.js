@@ -306,8 +306,7 @@ app.get('/conversations', function(req, res, next) {
                     'AND TS.member_id = MI.member_id ' +
                     'AND TS.is_deleted <> 1 ' +
                     'GROUP BY T.conversation_id ' +
-                    'ORDER BY FAVORITE DESC, ' +
-                    'SEND_TIME DESC, NAME;', [host_id, host_id, host_id],
+                    'ORDER BY FAVORITE DESC, SEND_TIME DESC, NAME;', [host_id, host_id, host_id],
                     function(err, rows, fields) {
                         if (err) {
                             console.log(query);
@@ -420,7 +419,7 @@ app.get('/getNewMessages', function(req, res, next) {
                     'AND TS.is_deleted <> 1 ' +
                     'AND UP.user_id = MI.user_id ' +
                     'AND T.send_time > (SELECT T.send_time from text T WHERE T.text_id = ?) ' +
-                    'ORDER BY SEND_TIME DESC LIMIT 10;', [conversation_id, text_id],
+                    'ORDER BY SEND_TIME DESC', [conversation_id, text_id],
                     function(err, rows, fields) {
                         if (err) {
                             console.log(query);
@@ -467,8 +466,8 @@ app.get('/getMessageThread', function(req, res, next) {
                     'AND MI.member_id = TS.member_id ' +
                     'AND TS.is_deleted <> 1 ' +
                     'AND UP.user_id = MI.user_id ' +
-                    'ORDER BY SEND_TIME ' +
-                    'DESC LIMIT 10', [conversation_id],
+                    'ORDER BY SEND_TIME DESC ' +
+                    'LIMIT 10', [conversation_id],
                     function(err, rows, fields) {
                         if (err) {
                             console.log(query);
@@ -490,7 +489,33 @@ app.get('/getMessageThread', function(req, res, next) {
     }
 });
 
-app.get('/newConversation', function(req, res, next) {
+app.get('/getLastText', function(req, res, next) {
+    try {
+        var query = url.parse(req.url, true).query;
+        var conversationId = query.conversationId;
+        req.getConnection(function(err, conn) {
+            if (err) {
+                console.error('SQL Connection error: ', err);
+                return next(err);
+            } else {
+                conn.query('CALL get_last_text(?, @text)', [conversationId],
+                    function(err, result) {
+                        if (err) {
+                            console.error('SQL error: ', err);
+                            return next(err);
+                        }
+                        console.log(result[0]);
+                        res.json(result[0]);
+                    });
+            }
+        });
+    } catch (ex) {
+        console.error("Internal error:" + ex);
+        return next(ex);
+    }
+});
+
+app.get('/findConversation', function(req, res, next) {
     try {
         var query = url.parse(req.url, true).query;
         var host_id = query.host_id;
