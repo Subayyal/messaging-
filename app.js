@@ -36,8 +36,8 @@ app.use(bodyParser.urlencoded({ extended: false }));
 var options = {
     host: 'localhost',
     port: 3306,
-    user: 'keshri',
-    password: 'keshri',
+    user: 'root',
+    password: 'root',
     database: 'session'
 };
 
@@ -69,8 +69,8 @@ io.use(passportSocketIo.authorize({ //configure socket.io
 
 app.use(connection(mysql, {
     host: "localhost",
-    user: "keshri",
-    password: "keshri",
+    user: "root",
+    password: "root",
     database: "messaging"
 }, 'request'));
 
@@ -121,6 +121,10 @@ io.on('connection', function(socket) {
             }
         });
         socket.to(data.threadId).emit('new-conversation-created', { threadId: data.threadId, from: data.hostId });
+    });
+
+    socket.on('user-status-change', function(){
+        socket.broadcast.emit('user-status-change-recieve');
     });
 
     socket.on('new-message', function(data) {
@@ -452,11 +456,11 @@ app.get('/getMessageThread', function(req, res, next) {
                 console.error('SQL Connection error: ', err);
                 return next(err);
             } else {
-                conn.query('SELECT DISTINCT IF(CI.is_group = 1, ' +
-                    'CONCAT(UP.first_name," " , UP.last_name), "") AS NAME, ' +
-                    'CI.conversation_id AS CONVERSATION_ID, T.sender_id AS SENDER_ID, T.text_id AS TEXT_ID, ' +
+                conn.query('SELECT DISTINCT ' +
+                    'CONCAT(UP.first_name," " , UP.last_name) AS NAME, ' +
+                    'CI.conversation_id AS CONVERSATION_ID, T.sender_id AS SENDER_ID,T.is_stat AS IS_STAT, T.text_id AS TEXT_ID, ' +
                     'MI.user_id AS USER_ID, T.text_message AS TEXT_MESSAGE, T.send_time AS SEND_TIME, ' +
-                    'T.text_id AS TEXT_ID, MI.favorite AS FAVORITE, CI.is_group AS IS_GROUP ' +
+                    'T.text_id AS TEXT_ID, MI.favorite AS FAVORITE, CI.is_group AS IS_GROUP, CI.group_name AS GROUP_NAME ' +
                     'FROM user_profile UP, text T, conversation_information CI, member_information MI, ' +
                     'text_status TS WHERE CI.conversation_id = ? ' +
                     'AND MI.member_id = T.sender_id ' +
@@ -647,10 +651,10 @@ app.post('/editMemberInformation', function(req, res, next) {
 
 app.post('/editUserProfile', function(req, res, next) {
     try {
-        var query = url.parse(req.url, true).query;
-        var userId = query.userId;
-        var status = query.status;
-        var requestKey = query.requestKey;
+        var reqObj = req.body;
+        var userId = reqObj.userId;
+        var status = reqObj.status;
+        var requestKey = reqObj.requestKey;
         var insertSql;
         var val;
 
@@ -661,7 +665,7 @@ app.post('/editUserProfile', function(req, res, next) {
             } else {
                 if (requestKey == 'status') {
                     console.log("In Status");
-                    insertSql = "CALL user_status(?,?)";
+                    insertSql = "CALL user_status(?,?, @response)";
                     val = [userId, status];
                 } else if (requestKey == 'lastActivity') {
                     console.log("In Last Activity");
@@ -675,7 +679,36 @@ app.post('/editUserProfile', function(req, res, next) {
                             return next(err);
                         }
                         console.log(result);
-                        res.json({ "success": "success" });
+                        res.json(result[0]);
+                    });
+            }
+        });
+    } catch (ex) {
+        console.error("Internal error:" + ex);
+        return next(ex);
+    }
+});
+
+app.get('/getUserStatus', function(req, res, next) {
+    try {
+        var query = url.parse(req.url, true).query;
+        var userId = query.userId;
+        var insertSql = 'SELECT user_status FROM `user_profile` WHERE user_id = ?'
+        var val = [userId];
+
+        req.getConnection(function(err, conn) {
+            if (err) {
+                console.error('SQL Connection error: ', err);
+                return next(err);
+            } else {
+                var query = conn.query(insertSql, val,
+                    function(err, result) {
+                        if (err) {
+                            console.error('SQL error: ', err);
+                            return next(err);
+                        }
+                        console.log(result);
+                        res.json(result[0]);
                     });
             }
         });
