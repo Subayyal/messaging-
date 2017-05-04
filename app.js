@@ -693,7 +693,7 @@ app.get('/getUserStatus', function(req, res, next) {
     try {
         var query = url.parse(req.url, true).query;
         var userId = query.userId;
-        var insertSql = 'SELECT user_status FROM `user_profile` WHERE user_id = ?'
+        var insertSql = 'SELECT user_status AS USER_STATUS FROM `user_profile` WHERE user_id = ?'
         var val = [userId];
 
         req.getConnection(function(err, conn) {
