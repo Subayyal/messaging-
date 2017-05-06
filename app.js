@@ -36,8 +36,8 @@ app.use(bodyParser.urlencoded({ extended: false }));
 var options = {
     host: 'localhost',
     port: 3306,
-    user: 'root',
-    password: 'root',
+    user: 'keshri',
+    password: 'keshri',
     database: 'session'
 };
 
@@ -69,8 +69,8 @@ io.use(passportSocketIo.authorize({ //configure socket.io
 
 app.use(connection(mysql, {
     host: "localhost",
-    user: "root",
-    password: "root",
+    user: "keshri",
+    password: "keshri",
     database: "messaging"
 }, 'request'));
 
@@ -109,7 +109,9 @@ io.on('connection', function(socket) {
             }
         });
     });
-
+    socket.on('new-conversation-temp', function() {
+        socket.broadcast.emit('new-conversation-created');
+    })
     socket.on('new-conversation', function(data) {
         console.log('new-conversation called ');
         passportSocketIo.filterSocketsByUser(io, function(user) {
@@ -123,7 +125,7 @@ io.on('connection', function(socket) {
         socket.to(data.threadId).emit('new-conversation-created', { threadId: data.threadId, from: data.hostId });
     });
 
-    socket.on('user-status-change', function(){
+    socket.on('user-status-change', function() {
         socket.broadcast.emit('user-status-change-recieve');
     });
 
@@ -290,6 +292,10 @@ app.get('/conversations', function(req, res, next) {
                     'IF(CI.is_group = 0, UP.PROFILE_PICTURE, CI.group_picture) AS PROFILE_PICTURE, ' +
                     'IF(CI.is_group = 0, CONCAT(UP.FIRST_NAME," ", UP.LAST_NAME), ' +
                     'CI.group_name) AS NAME, ' +
+                    '(SELECT COUNT(T1.text_id) FROM text T1, member_information MT, text_status TS1 ' +
+                    'WHERE T1.text_id = TS1.text_id AND MT.member_id = TS1.member_id ' +
+                    'AND T1.conversation_id = CI.conversation_id AND MT.user_id = MI.user_id ' +
+                    'AND TS1.seen_time IS null) AS COUNT, ' +
                     'T.TEXT_MESSAGE AS TEXT, ' +
                     'T.IS_MEDIA AS IS_MEDIA, ' +
                     'MI.admin AS IS_ADMIN, ' +
@@ -310,7 +316,7 @@ app.get('/conversations', function(req, res, next) {
                     'AND TS.member_id = MI.member_id ' +
                     'AND TS.is_deleted <> 1 ' +
                     'GROUP BY T.conversation_id ' +
-                    'ORDER BY FAVORITE DESC, SEND_TIME DESC, NAME;', [host_id, host_id, host_id],
+                    'ORDER BY COUNT DESC, FAVORITE DESC, SEND_TIME DESC, NAME;', [host_id, host_id, host_id],
                     function(err, rows, fields) {
                         if (err) {
                             console.log(query);
@@ -460,7 +466,7 @@ app.get('/getMessageThread', function(req, res, next) {
                     'CONCAT(UP.first_name," " , UP.last_name) AS NAME, ' +
                     'CI.conversation_id AS CONVERSATION_ID, T.sender_id AS SENDER_ID,T.is_stat AS IS_STAT, T.text_id AS TEXT_ID, ' +
                     'MI.user_id AS USER_ID, T.text_message AS TEXT_MESSAGE, T.send_time AS SEND_TIME, ' +
-                    'T.text_id AS TEXT_ID, MI.favorite AS FAVORITE, CI.is_group AS IS_GROUP, CI.group_name AS GROUP_NAME ' +
+                    'T.text_id AS TEXT_ID, MI.favorite AS FAVORITE, CI.is_group AS IS_GROUP ' +
                     'FROM user_profile UP, text T, conversation_information CI, member_information MI, ' +
                     'text_status TS WHERE CI.conversation_id = ? ' +
                     'AND MI.member_id = T.sender_id ' +
@@ -665,7 +671,7 @@ app.post('/editUserProfile', function(req, res, next) {
             } else {
                 if (requestKey == 'status') {
                     console.log("In Status");
-                    insertSql = "CALL user_status(?,?, @response)";
+                    insertSql = "CALL user_status(?,?, @USER_STATUS)";
                     val = [userId, status];
                 } else if (requestKey == 'lastActivity') {
                     console.log("In Last Activity");
@@ -779,13 +785,17 @@ app.post('/editTextStatus', function(req, res, next) {
                 return next(err);
             } else {
                 if (requestKey == 'clearText') {
-                    insertSql = "CALL clear_text(?,?)";
-                    val = [textId, userId];
+                    insertSql = "CALL clear_text(?,?,?)";
+                    val = [textId, userId, conversationId];
                 } else if (requestKey == 'clearConversation') {
                     insertSql = "CALL clear_conversation(?,?)";
                     val = [conversationId, userId];
                 } else if (requestKey == 'unclearText') {
                     insertSql = "CALL unclear_text(?,?)";
+                    val = [conversationId, userId];
+                } else if (requestKey == 'seenTime') {
+                    console.log('Called Seen Time');
+                    insertSql = "CALL seen_Time(?,?)";
                     val = [conversationId, userId];
                 }
                 var query = conn.query(insertSql, val,
